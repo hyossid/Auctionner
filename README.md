@@ -3,6 +3,7 @@ Customized auction contract
 
 ### Details
 
+
 ```shell
 yarn build
 yarn test:auctioneer

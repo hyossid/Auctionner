@@ -27,7 +27,6 @@ contract Auctioneer is Ownable, ReentrancyGuard {
   event End(uint nftId, address winner, uint amount);
   event SetOwner(address indexed owner);
   event SetTreasury(address indexed treasury);
-  event SetReservePrice(address indexed sender, uint amount);
   event ClaimWinner(address indexed winner, uint nftId);
   event ClaimSeller(address indexed seller, uint nftId);
 
@@ -48,15 +47,14 @@ contract Auctioneer is Ownable, ReentrancyGuard {
 
   // [Auction] : Variables
   IERC721 public immutable nft; // NFT to be listed in Auction initially
-  address payable public immutable seller;
   mapping(uint => bool) public didWinnerClaimed; // Initial Auction
   mapping(uint => bool) public didSellerClaimed; // Initial Auction
-
   mapping(address => bool) public approvedToken; // Approved Tokens to be traded in auction
 
   // [Auction] : Bid Info
   struct bidInfo {
     mapping(address => uint) bids;
+    address seller;
     address highestBidder;
     address winner;
     uint highestBid;
@@ -64,7 +62,6 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     uint endAt;
     bool started;
     bool ended;
-    uint reservePrice;
   }
 
   mapping(uint => bidInfo) public nftStatus;
@@ -115,7 +112,6 @@ contract Auctioneer is Ownable, ReentrancyGuard {
 
   constructor(address _nft) {
     nft = IERC721(_nft); //  Gold Gereges NFT
-    seller = payable(msg.sender);
     _transferOwnership(msg.sender); // Deployer is owner of this auction contract
     DEPOSIT_VALUE = 50000000000000000; // 0.05 ETH
   }
@@ -126,20 +122,17 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     }
 
   // need to start respectively for each nft
-  function start(uint _nftId, uint startingBid, uint period) external{
+  function start(uint _nftId, uint reservePrice, uint period) external isOwner(address(nft), _nftId,msg.sender) didDeposit(msg.sender) {
     require(
       !nftStatus[_nftId].started,
       "[INFO] Auctionner has already started"
     );
-    require(
-      msg.sender == seller,
-      "[INFO] msg.sender is not configured as seller"
-    );
     require(period <= 30, "[INFO] Maximum allowable auction is 30 days");
     
     nft.safeTransferFrom(msg.sender, address(this), _nftId); // Transfer nft from sender to contract
-
-    nftStatus[_nftId].highestBid = startingBid;
+    
+    nftStatus[_nftId].seller = msg.sender;
+    nftStatus[_nftId].highestBid = reservePrice;
     nftStatus[_nftId].started = true;
     nftStatus[_nftId].endAt = block.timestamp + uint(period) * 1 days; // Auction ends in 7 days
 
@@ -152,10 +145,6 @@ contract Auctioneer is Ownable, ReentrancyGuard {
       block.timestamp < nftStatus[_nftId].endAt,
       "[INFO] Auctionner already finished"
     );
-    require(
-      msg.value > nftStatus[_nftId].reservePrice,
-      "[INFO] Bidding value is smaller than minimum reserve price"
-    ); // Reverts when bid is below reserve price
     require(
       msg.value > nftStatus[_nftId].highestBid,
       "[INFO] Bidding value is smaller than current highest bid"
@@ -191,12 +180,6 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     emit SetTreasury(treasury);
   }
 
-  function setReservePrice(uint _nftId, uint _reservePrice) external {
-    require(msg.sender == seller, "[INFO] msg.sender is not seller");
-    nftStatus[_nftId].reservePrice = _reservePrice;
-
-    emit SetReservePrice(msg.sender, nftStatus[_nftId].reservePrice);
-  }
 
   function end(uint _nftId) external didDeposit(msg.sender) {
     require(nftStatus[_nftId].started, "[INFO] Auctionner has not started");
@@ -214,7 +197,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
       didWinnerClaimed[_nftId] = false;
       didSellerClaimed[_nftId] = false;
     } else {
-      nft.safeTransferFrom(address(this), seller, _nftId); // Return NFT to seller
+      nft.safeTransferFrom(address(this), nftStatus[_nftId].seller, _nftId); // Return NFT to seller
     }
 
     emit End(_nftId, nftStatus[_nftId].winner, nftStatus[_nftId].winnings);
@@ -240,19 +223,19 @@ contract Auctioneer is Ownable, ReentrancyGuard {
   }
 
   function claimSeller(uint _nftId) external{
-    require(msg.sender == seller, "[INFO] msg.sender is not seller");
+    require(msg.sender == nftStatus[_nftId].seller, "[INFO] msg.sender is not seller");
     require(!didSellerClaimed[_nftId], "[INFO] seller already claimed rewards");
 
     //seller.transfer(nftStatus[_nftId].winnings);
 
-    (bool success, ) = payable(seller).call{value: nftStatus[_nftId].winnings}(
+    (bool success, ) = payable(nftStatus[_nftId].seller).call{value: nftStatus[_nftId].winnings}(
       ""
     );
     require(success, "[INFO] Transfer failed");
 
     didSellerClaimed[_nftId] = true;
 
-    emit ClaimSeller(seller, _nftId);
+    emit ClaimSeller(nftStatus[_nftId].seller, _nftId);
   }
 
   function calculatePlatformFee(

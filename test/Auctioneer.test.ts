@@ -35,7 +35,6 @@ describe('Lock', function () {
       it('Should set the right owner/seller and nft', async () => {
         expect(await auctioneer.owner()).to.equal(owner.address);
         expect(await auctioneer.nft()).to.equal(nft.address);
-        expect(await auctioneer.seller()).to.equal(owner.address); // Seller needs to be deployer
       });
     });
 
@@ -44,6 +43,11 @@ describe('Lock', function () {
         let nftId = 1;
         let startingBid = 10000000;
         let period = 7;
+
+        await auctioneer
+          .connect(owner)
+          .deposit({ value: ethers.utils.parseEther('0.05') });
+
         await auctioneer.connect(owner).start(nftId, startingBid, period);
         expect((await auctioneer.nftStatus(nftId)).started).to.equal(true);
       });
