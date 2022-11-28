@@ -3,6 +3,8 @@ pragma solidity ^0.8.13;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "hardhat/console.sol";
 
 // Interface to transfer NFT
 interface IERC721 {
@@ -110,6 +112,11 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     DEPOSIT_VALUE = 50000000000000000; // 0.05 ETH
   }
 
+    
+   function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
+    }
+
   // need to start respectively for each nft
   function start(uint _nftId, uint startingBid, uint period) external {
     require(
@@ -121,7 +128,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
       "[INFO] msg.sender is not configured as seller"
     );
     require(period <= 30, "[INFO] Maximum allowable auction is 30 days");
-
+    
     nft.safeTransferFrom(msg.sender, address(this), _nftId); // Transfer nft from sender to contract
 
     nftStatus[_nftId].highestBid = startingBid;

@@ -16,10 +16,16 @@ describe('Lock', function () {
 
     beforeEach(async () => {
       Auctioneer = await ethers.getContractFactory('Auctioneer');
-      let MyNFT = await ethers.getContractFactory('MyNFT');
+      let MyNFT = await ethers.getContractFactory('GoldGeregeExample');
       [owner, royaltyAddress, addr1] = await ethers.getSigners();
-      nft = await MyNFT.deploy();
-      auctioneer = await Auctioneer.deploy(nft.address, royaltyAddress.address);
+      nft = await MyNFT.connect(owner).deploy();
+      auctioneer = await Auctioneer.connect(owner).deploy(nft.address);
+
+      nft.connect(owner).mint(owner.address, 1);
+      nft.connect(owner).mint(owner.address, 2);
+      nft.connect(owner).mint(owner.address, 3);
+      nft.connect(owner).setApprovalForAll(owner.address, true);
+      nft.connect(owner).setApprovalForAll(auctioneer.address, true);
     });
 
     describe('[1] : Deployment', () => {
@@ -32,13 +38,10 @@ describe('Lock', function () {
 
     describe('[2] : Start Auction', () => {
       it('Start Auction', async () => {
-        let nftId = 11;
+        let nftId = 1;
         let startingBid = 10000000;
         let period = 7;
-
-        // await auctioneer.start.call(nftId, startingBid, period, {
-        //   from: owner.address,
-        // });
+        await auctioneer.connect(owner).start(nftId, startingBid, period);
       });
     });
   });
