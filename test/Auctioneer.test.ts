@@ -20,7 +20,10 @@ describe('Lock', function () {
       [owner, royaltyAddress, addr1] = await ethers.getSigners();
       nft = await MyNFT.connect(owner).deploy();
       auctioneer = await Auctioneer.connect(owner).deploy(nft.address);
+      // const ownerBalance = await ethers.provider.getBalance(owner.address);
+      // console.log(ownerBalance);
 
+      // NFT Mint
       nft.connect(owner).mint(owner.address, 1);
       nft.connect(owner).mint(owner.address, 2);
       nft.connect(owner).mint(owner.address, 3);
@@ -42,6 +45,19 @@ describe('Lock', function () {
         let startingBid = 10000000;
         let period = 7;
         await auctioneer.connect(owner).start(nftId, startingBid, period);
+        expect((await auctioneer.nftStatus(nftId)).started).to.equal(true);
+      });
+    });
+
+    describe('[3] : Deposit', () => {
+      it('Deposit and withdraw', async () => {
+        await auctioneer
+          .connect(addr1)
+          .deposit({ value: ethers.utils.parseEther('0.05') });
+
+        expect(await auctioneer.depositCheck(addr1.address)).to.equal(true);
+        await auctioneer.connect(addr1).withdraw(addr1.address);
+        expect(await auctioneer.depositCheck(addr1.address)).to.equal(false);
       });
     });
   });

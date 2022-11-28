@@ -88,6 +88,14 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     _;
   }
 
+  modifier didDeposit(
+    address senderAddress
+  ) {
+    bool _didDeposit = depositCheck[senderAddress];
+    require(_didDeposit == true, "[INFO] : Sender did not deposit");
+    _;
+  }
+
   modifier isListed(address nftAddress, uint256 tokenId) {
     Listing memory listing = salesListing[nftAddress][tokenId];
     require(listing.price > 0, "[INFO] : Not listed");
@@ -112,13 +120,13 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     DEPOSIT_VALUE = 50000000000000000; // 0.05 ETH
   }
 
-    
+
    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
         return IERC721Receiver.onERC721Received.selector;
     }
 
   // need to start respectively for each nft
-  function start(uint _nftId, uint startingBid, uint period) external {
+  function start(uint _nftId, uint startingBid, uint period) external{
     require(
       !nftStatus[_nftId].started,
       "[INFO] Auctionner has already started"
@@ -138,7 +146,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     emit Start(_nftId);
   }
 
-  function bid(uint _nftId) external payable {
+  function bid(uint _nftId) external payable didDeposit(msg.sender) {
     require(nftStatus[_nftId].started, "[INFO] Auctionner has not started");
     require(
       block.timestamp < nftStatus[_nftId].endAt,
@@ -190,7 +198,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     emit SetReservePrice(msg.sender, nftStatus[_nftId].reservePrice);
   }
 
-  function end(uint _nftId) external {
+  function end(uint _nftId) external didDeposit(msg.sender) {
     require(nftStatus[_nftId].started, "[INFO] Auctionner has not started");
     require(
       block.timestamp >= nftStatus[_nftId].endAt,
@@ -213,7 +221,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
   }
 
   // Claiming Functions
-  function claimWinner(uint _nftId) external {
+  function claimWinner(uint _nftId) external{
     require(
       msg.sender == nftStatus[_nftId].winner,
       "[INFO] msg.sender is not winner"
@@ -225,13 +233,13 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     didWinnerClaimed[_nftId] = true;
     uint platformFee = calculatePlatformFee(nftStatus[_nftId].winnings);
     treasury.transfer(platformFee); // pay 1% of platform fee
-    // uint royaltyPrice = calculateRoyalty(nftStatus[_nftId].winnings);
+    //uint royaltyPrice = royaltyInfo
     // royaltyreceiver.transfer(platformFee); // pay 5% of royalty fee
 
     emit ClaimWinner(winner, _nftId);
   }
 
-  function claimSeller(uint _nftId) external {
+  function claimSeller(uint _nftId) external{
     require(msg.sender == seller, "[INFO] msg.sender is not seller");
     require(!didSellerClaimed[_nftId], "[INFO] seller already claimed rewards");
 
@@ -240,7 +248,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     (bool success, ) = payable(seller).call{value: nftStatus[_nftId].winnings}(
       ""
     );
-    require(success, "Transfer failed");
+    require(success, "[INFO] Transfer failed");
 
     didSellerClaimed[_nftId] = true;
 
@@ -263,7 +271,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     notListed(nftAddress, _nftId, msg.sender)
     isOwner(nftAddress, _nftId, msg.sender)
   {
-    require(askPrice > 0, "[INFO]: Ask price must be aboce zero");
+    require(askPrice > 0, "[INFO]: Ask price must be above zero");
     IERC721 _nft = IERC721(nftAddress);
     require(
       _nft.getApproved(_nftId) != address(this),
@@ -279,7 +287,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
   function cancelListing(
     address nftAddress,
     uint256 _nftId
-  ) external isListed(nftAddress, _nftId) {
+  ) external isListed(nftAddress, _nftId){
     require(
       msg.sender == salesListing[nftAddress][_nftId].seller,
       "[INFO]: msg.sender is not seller"
@@ -327,7 +335,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
   function deposit() public payable {
     require(
       msg.value == DEPOSIT_VALUE,
-      "[INFO] : Need to deposit at least 0.05 ETH"
+      "[INFO] : Need to deposit exact amount of 0.05 ETH"
     );
     depositCheck[msg.sender] = true;
     emit Deposited(msg.sender, msg.value);
