@@ -9,6 +9,7 @@
     "test:all": "REPORT_GAS=true hardhat test",
     "test:auctioneer": "REPORT_GAS=true hardhat test test/Auctioneer.test.ts",
     "build": "hardhat compile",
+    "lint:force": "npx prettier --write 'contracts/**/*.sol'",
     "lint": "prettier --check '{contracts,scripts,test}/**/*.{ts,json,js,sol}'"
   },
   "devDependencies": {
