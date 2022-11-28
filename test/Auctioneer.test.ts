@@ -12,13 +12,12 @@ describe('Lock', function () {
       nft: any,
       auctioneer: any,
       owner: any,
-      royaltyAddress: any,
       addr1: any,
       addr2: any;
     beforeEach(async () => {
       Auctioneer = await ethers.getContractFactory('Auctioneer');
       let MyNFT = await ethers.getContractFactory('GoldGeregeExample');
-      [owner, royaltyAddress, addr1, addr2] = await ethers.getSigners();
+      [owner, addr1, addr2] = await ethers.getSigners();
       nft = await MyNFT.connect(owner).deploy();
       auctioneer = await Auctioneer.connect(owner).deploy(nft.address);
       // const ownerBalance = await ethers.provider.getBalance(owner.address);
