@@ -13,6 +13,9 @@ interface IERC721 {
   function ownerOf(uint) external returns (address);
 
   function getApproved(uint) external returns (address);
+
+function royaltyInfo(uint256 tokenId, uint256 salePrice) external returns (address, uint256);
+
 }
 
 contract Auctioneer is Ownable, ReentrancyGuard {
@@ -71,7 +74,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     uint256 price;
     address seller;
   }
-  mapping(address => mapping(uint256 => Listing)) private salesListing;
+  mapping(address => mapping(uint256 => Listing)) public salesListing;
   mapping(address => uint256) private salesProceeds;
 
   // [Common] : Modifiers
@@ -215,10 +218,10 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     nft.safeTransferFrom(address(this), winner, _nftId);
     didWinnerClaimed[_nftId] = true;
     uint platformFee = calculatePlatformFee(nftStatus[_nftId].winnings);
-    treasury.transfer(platformFee); // pay 1% of platform fee
-    //uint royaltyPrice = royaltyInfo
-    // royaltyreceiver.transfer(platformFee); // pay 5% of royalty fee
+    (address royaltyreceiver, uint royaltyFee) = nft.royaltyInfo(_nftId,nftStatus[_nftId].winnings);
 
+    treasury.transfer(platformFee); // pay 1% of platform fee
+    payable(royaltyreceiver).transfer(royaltyFee); // pay royalty fee
     emit ClaimWinner(winner, _nftId);
   }
 
@@ -226,9 +229,10 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     require(msg.sender == nftStatus[_nftId].seller, "[INFO] msg.sender is not seller");
     require(!didSellerClaimed[_nftId], "[INFO] seller already claimed rewards");
 
-    //seller.transfer(nftStatus[_nftId].winnings);
-
-    (bool success, ) = payable(nftStatus[_nftId].seller).call{value: nftStatus[_nftId].winnings}(
+    uint platformFee = calculatePlatformFee(nftStatus[_nftId].winnings);
+    ( , uint royaltyFee) = nft.royaltyInfo(_nftId,nftStatus[_nftId].winnings);
+    uint deductedFee = nftStatus[_nftId].winnings - (platformFee + royaltyFee);
+    (bool success, ) = payable(nftStatus[_nftId].seller).call{value: deductedFee}(
       ""
     );
     require(success, "[INFO] Transfer failed");
@@ -256,13 +260,10 @@ contract Auctioneer is Ownable, ReentrancyGuard {
   {
     require(askPrice > 0, "[INFO]: Ask price must be above zero");
     IERC721 _nft = IERC721(nftAddress);
-    require(
-      _nft.getApproved(_nftId) != address(this),
-      "[INFO]: Auctioneer is not approved"
-    );
+
     salesListing[nftAddress][_nftId] = Listing(askPrice, msg.sender);
 
-    nft.safeTransferFrom(msg.sender, address(this), _nftId); // Transfer nft from sender to contract
+    _nft.safeTransferFrom(msg.sender, address(this), _nftId); // Transfer nft from sender to contract
 
     emit ItemListed(msg.sender, nftAddress, _nftId, askPrice);
   }
@@ -285,19 +286,22 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     uint256 _nftId
   ) external payable isListed(nftAddress, _nftId) nonReentrant {
     Listing memory listedItem = salesListing[nftAddress][_nftId];
-    require(msg.value >= listedItem.price, "INFO: Price Not Met");
+    require(msg.value >= listedItem.price, "[INFO] : Price not met");
 
+    IERC721 _nft = IERC721(nftAddress);
     salesProceeds[listedItem.seller] += msg.value;
     delete (salesListing[nftAddress][_nftId]);
-    IERC721(nftAddress).safeTransferFrom(address(this), msg.sender, _nftId);
 
     uint platformFee = calculatePlatformFee(msg.value);
     treasury.transfer(platformFee); // pay 1% of platform fee
-    // uint royaltyPrice = calculateRoyalty(nftStatus[_nftId].winnings);
-    // royaltyreceiver.transfer(platformFee); // pay 5% of royalty fee
-    // TODO : change below line incorporating royalty fee
-    (bool success, ) = payable(msg.sender).call{value: msg.value}("");
-    require(success, "Transfer failed");
+    (address royaltyreceiver, uint royaltyFee) = _nft.royaltyInfo(_nftId,msg.value);
+
+    payable(royaltyreceiver).transfer(royaltyFee); // pay royalty fee
+
+    uint deductedFee = msg.value - (platformFee + royaltyFee);
+    (bool success, ) = payable(msg.sender).call{value: deductedFee}("");
+    require(success, "[INFO] : Transfer failed");
+    IERC721(nftAddress).safeTransferFrom(address(this), msg.sender, _nftId);
 
     emit ItemBought(msg.sender, nftAddress, _nftId, listedItem.price);
   }
@@ -324,14 +328,10 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     emit Deposited(msg.sender, msg.value);
   }
 
-  function withdraw(address _account) public {
-    require(depositCheck[_account] == true, "[INFO] : No deposit found");
-    depositCheck[_account] = false;
-    payable(_account).transfer(DEPOSIT_VALUE);
-    emit Withdrawn(_account);
-  }
-
-  function checkIfDeposit(address _account) public view returns (bool) {
-    return depositCheck[_account];
+  function withdrawDeposit() public {
+    require(depositCheck[msg.sender] == true, "[INFO] : No deposit found");
+    depositCheck[msg.sender] = false;
+    payable(msg.sender).transfer(DEPOSIT_VALUE);
+    emit Withdrawn(msg.sender);
   }
 }
