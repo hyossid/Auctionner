@@ -24,14 +24,8 @@ interface IERC721 {
 
 }
 
-    error PriceNotMet(address nftAddress, uint256 tokenId, uint256 price);
-    error ItemNotForSale(address nftAddress, uint256 tokenId);
-    error NotListed(address nftAddress, uint256 tokenId);
     error AlreadyListed(address nftAddress, uint256 tokenId);
-    error NoProceeds();
-    error NotOwner();
-    error NotApprovedForMarketplace();
-    error PriceMustBeAboveZero();
+
 
 contract Auctioneer is ERC2981, Ownable, ReentrancyGuard {
     
