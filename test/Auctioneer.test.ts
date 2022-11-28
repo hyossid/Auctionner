@@ -38,7 +38,7 @@ describe('Deployment', function () {
         .deposit({ value: ethers.utils.parseEther('0.05') });
 
       expect(await auctioneer.depositCheck(addr1.address)).to.equal(true);
-      await auctioneer.connect(addr1).withdrawDeposit();
+      await auctioneer.connect(addr1).withdrawDeposit(addr1.address);
       expect(await auctioneer.depositCheck(addr1.address)).to.equal(false);
     });
   });
@@ -95,8 +95,6 @@ describe('Deployment', function () {
 
       expect(await nft.connect(owner).ownerOf(nftId)).to.equal(addr2.address);
       expect(await auctioneer.didSellerClaimed(nftId)).to.equal(true);
-
-      await auctioneer.connect(addr2).withdrawDeposit();
     });
   });
 
