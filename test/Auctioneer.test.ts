@@ -1,3 +1,4 @@
+import { time } from '@nomicfoundation/hardhat-network-helpers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
@@ -12,12 +13,12 @@ describe('Lock', function () {
       auctioneer: any,
       owner: any,
       royaltyAddress: any,
-      addr1: any;
-
+      addr1: any,
+      addr2: any;
     beforeEach(async () => {
       Auctioneer = await ethers.getContractFactory('Auctioneer');
       let MyNFT = await ethers.getContractFactory('GoldGeregeExample');
-      [owner, royaltyAddress, addr1] = await ethers.getSigners();
+      [owner, royaltyAddress, addr1, addr2] = await ethers.getSigners();
       nft = await MyNFT.connect(owner).deploy();
       auctioneer = await Auctioneer.connect(owner).deploy(nft.address);
       // const ownerBalance = await ethers.provider.getBalance(owner.address);
@@ -39,17 +40,51 @@ describe('Lock', function () {
     });
 
     describe('[2] : Start Auction', () => {
-      it('Start Auction', async () => {
+      it('Simple Auction Happy path', async () => {
         let nftId = 1;
-        let startingBid = 10000000;
+        let startingBid = ethers.utils.parseEther('0.005');
         let period = 7;
 
+        // Deposit to platform
         await auctioneer
           .connect(owner)
           .deposit({ value: ethers.utils.parseEther('0.05') });
+        await auctioneer
+          .connect(addr1)
+          .deposit({ value: ethers.utils.parseEther('0.05') });
+        await auctioneer
+          .connect(addr2)
+          .deposit({ value: ethers.utils.parseEther('0.05') });
 
+        // nftId:1 start auction
         await auctioneer.connect(owner).start(nftId, startingBid, period);
         expect((await auctioneer.nftStatus(nftId)).started).to.equal(true);
+
+        // addr1 bids for 0.01 eth
+        await auctioneer
+          .connect(addr1)
+          .bid(nftId, { value: ethers.utils.parseEther('0.01') });
+
+        // addr2 bids for 0.02 eth
+        let bid = await auctioneer
+          .connect(addr2)
+          .bid(nftId, { value: ethers.utils.parseEther('0.02') });
+
+        expect(bid).to.emit(auctioneer, 'Withdraw');
+
+        const bidInfo = await auctioneer.nftStatus(nftId);
+        expect(bidInfo.highestBidder).to.equal(addr2.address);
+        expect(bidInfo.highestBid).to.equal(ethers.utils.parseEther('0.02'));
+
+        // time manipulation
+        await time.increase(300000000000);
+
+        await auctioneer.connect(addr2).end(nftId);
+        await auctioneer.connect(addr2).claimWinner(nftId);
+        await auctioneer.connect(owner).claimSeller(nftId);
+
+        expect(await nft.connect(owner).ownerOf(nftId)).to.equal(addr2.address);
+        expect(await auctioneer.didSellerClaimed(nftId)).to.equal(true);
       });
     });
 
