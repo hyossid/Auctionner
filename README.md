@@ -3,6 +3,7 @@ Customized auction contract
 
 ### Details
 
+ - User needs to manually call deposit & withdraw for using auctioneer platform
 
 ```shell
 yarn build
