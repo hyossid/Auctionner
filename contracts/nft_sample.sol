@@ -14,14 +14,12 @@ contract GoldGeregeExample is ERC721, ERC2981 {
     _safeMint(to, tokenId);
   }
 
-  function royaltyInfo(uint256 tokenId, uint256 salePrice)
-    public
-    view
-    override
-    returns (address, uint256)
-{
+  function royaltyInfo(
+    uint256 tokenId,
+    uint256 salePrice
+  ) public view override returns (address, uint256) {
     return super.royaltyInfo(tokenId, salePrice);
-}
+  }
 
   function supportsInterface(
     bytes4 interfaceId

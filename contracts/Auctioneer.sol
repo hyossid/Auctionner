@@ -6,42 +6,63 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "hardhat/console.sol";
 
-// Interface to transfer NFT
-interface IERC721 {
-  function safeTransferFrom(address from, address to, uint tokenId) external;
+import {bidInfo, Listing} from "./lib/AuctioneerStructs.sol";
+import {IERC721} from "./lib/AuctioneerInterface.sol";
 
-  function ownerOf(uint) external returns (address);
-
-  function getApproved(uint) external returns (address);
-
-function royaltyInfo(uint256 tokenId, uint256 salePrice) external returns (address, uint256);
-
-}
+/**
+ * @title  Auctioneer
+ * @author Sidney Seo (sidneys.btc)
+ * @notice Auctioneer contract for customized English auction 
+ *
+ */
 
 contract Auctioneer is Ownable, ReentrancyGuard {
-  // [Common] : Variables
-  uint public DEPOSIT_VALUE;
-  uint public immutable discountRate; // for dutch
-  address payable public treasury; // there is only one unique treasury
 
-  // [Auction] : Events
+  /// @notice Configurable initial deposit value
+  uint public DEPOSIT_VALUE;
+
+  /// @notice Discount rate for duth auction, set on deployment stage
+  uint public immutable discountRate; 
+
+  /// @notice Unique treasury address to reserve platform fee
+  address payable public treasury; 
+
+  /// @notice Emit event of Start
   event Start(uint nftId);
+
+  /// @notice Emit event of Bid
   event Bid(uint nftId, address indexed sender, uint amount);
+
+  /// @notice Emit event of Withdraw
   event Withdraw(uint nftId, address indexed bidder, uint amount);
+
+  /// @notice Emit event of End
   event End(uint nftId, address winner, uint amount);
+
+  /// @notice Emit event of SetOwner
   event SetOwner(address indexed owner);
+
+  /// @notice Emit event of SetTreasury
   event SetTreasury(address indexed treasury);
+
+  /// @notice Emit event of ClaimWinner
   event ClaimWinner(address indexed winner, uint nftId);
+
+  /// @notice Emit event of ClaimSeller
   event ClaimSeller(address indexed seller, uint nftId);
 
-  // [Fixed-Price Market] : Events
+  /// @notice Emit event of Item listed
   event ItemListed(
     address indexed seller,
     address nftAddress,
     uint nftId,
     uint price
   );
+
+  /// @notice Emit event of Item Cancelled
   event ItemCanceled(address indexed seller, address nftAddress, uint nftId);
+
+  /// @notice Emit event of ItemBought
   event ItemBought(
     address indexed seller,
     address nftAddress,
@@ -49,37 +70,37 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     uint price
   );
 
-  // [Auction] : Variables
-  IERC721 public immutable nft; // NFT to be listed in Auction initially
-  mapping(uint => bool) public didWinnerClaimed; // Initial Auction
-  mapping(uint => bool) public didSellerClaimed; // Initial Auction
-  mapping(address => bool) public approvedToken; // Approved Tokens to be traded in auction
+  /// @notice Emit event of deposit
+  event Deposited(address indexed payee, uint256 weiAmount);
 
-  // [Auction] : Bid Info
-  struct bidInfo {
-    mapping(address => uint) bids;
-    address seller;
-    address highestBidder;
-    address winner;
-    uint highestBid;
-    uint winnings;
-    uint startAt;
-    uint endAt;
-    bool started;
-    bool ended;
-    bool isDutch;
-  }
+  /// @notice Emit event of withdraw
+  event Withdrawn(address indexed payee);
 
+  /// @notice Listed NFT in Auction initially
+  IERC721 public immutable nft; 
+
+  /// @notice Track the if winner claimed
+  mapping(uint => bool) public didWinnerClaimed; 
+
+  /// @notice Track the if seller claimed
+  mapping(uint => bool) public didSellerClaimed; 
+
+  /// @notice Track the list of approved token for ERC20
+  mapping(address => bool) public approvedToken; 
+
+  /// @notice Track the nft auction status
   mapping(uint => bidInfo) public nftStatus;
 
-  // [Fixed-Price Market] : Listing
-  struct Listing {
-    uint256 price;
-    address seller;
-  }
+  /// @notice Track the fixed-price market listing status
   mapping(address => mapping(uint256 => Listing)) public salesListing;
-mapping(address => uint256) private salesProceeds;
-  // [Common] : Modifiers
+
+  /// @notice Track the proceeded sales list 
+  mapping(address => uint256) private salesProceeds;
+
+  /// @notice Track deposits
+  mapping(address => bool) public depositCheck;
+
+  /// @notice Check if nft is listed or not
   modifier notListed(
     address nftAddress,
     uint256 _nftId,
@@ -90,20 +111,21 @@ mapping(address => uint256) private salesProceeds;
     _;
   }
 
-  modifier didDeposit(
-    address senderAddress
-  ) {
+  /// @notice Check if user deposited deposit on platform
+  modifier didDeposit(address senderAddress) {
     bool _didDeposit = depositCheck[senderAddress];
     require(_didDeposit == true, "[INFO] : Sender did not deposit");
     _;
   }
 
+  /// @notice Check if nft is on fixed-price market platform
   modifier isListed(address nftAddress, uint256 tokenId) {
     Listing memory listing = salesListing[nftAddress][tokenId];
     require(listing.price > 0, "[INFO] : Not listed");
     _;
   }
 
+  /// @notice Check if user is nft's owner
   modifier isOwner(
     address nftAddress,
     uint256 _nftId,
@@ -115,28 +137,45 @@ mapping(address => uint256) private salesProceeds;
     _;
   }
 
+   /**
+     * @notice Constructor for the contract deployment.
+     */
   constructor(address _nft) {
-    nft = IERC721(_nft); //  Gold Gereges NFT
-    _transferOwnership(msg.sender); // Deployer is owner of this auction contract
+    nft = IERC721(_nft); 
+    _transferOwnership(msg.sender); 
     DEPOSIT_VALUE = 50000000000000000; // 0.05 ETH
-    discountRate = 1; 
+    discountRate = 1; // discout rate is configurable for dutch auction
   }
 
+  function onERC721Received(
+    address,
+    address,
+    uint256,
+    bytes calldata
+  ) external pure returns (bytes4) {
+    return IERC721Receiver.onERC721Received.selector;
+  }
 
-   function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
-        return IERC721Receiver.onERC721Received.selector;
-    }
-
-  // need to start respectively for each nft
-  function start(uint _nftId, uint reservePrice, uint period) external isOwner(address(nft), _nftId,msg.sender) didDeposit(msg.sender) {
+    /**
+     * @notice Start NFT Auction
+     *
+     * @param _nftId      The nft id of designated NFT.
+     * @param reservePrice     Reserved price for nft.
+     * @param period    Auction period in days. 
+     */
+  function start(
+    uint _nftId,
+    uint reservePrice,
+    uint period
+  ) external isOwner(address(nft), _nftId, msg.sender) didDeposit(msg.sender) {
     require(
       !nftStatus[_nftId].started,
       "[INFO] Auctionner has already started"
     );
     require(period <= 30, "[INFO] Maximum allowable auction is 30 days");
-    
+
     nft.safeTransferFrom(msg.sender, address(this), _nftId); // Transfer nft from sender to contract
-    
+
     nftStatus[_nftId].seller = msg.sender;
     nftStatus[_nftId].highestBid = reservePrice;
     nftStatus[_nftId].started = true;
@@ -145,6 +184,11 @@ mapping(address => uint256) private salesProceeds;
     emit Start(_nftId);
   }
 
+    /**
+     * @notice Start Bidding
+     *
+     * @param _nftId      The nft id of designated NFT.
+     */
   function bid(uint _nftId) external payable didDeposit(msg.sender) {
     require(nftStatus[_nftId].started, "[INFO] Auctionner has not started");
     require(
@@ -171,6 +215,12 @@ mapping(address => uint256) private salesProceeds;
     emit Bid(_nftId, msg.sender, msg.value);
   }
 
+    /**
+     * @notice Withdraw highestbid if someone outbids.
+     *
+     * @param _nftId      The nft id of designated NFT.
+     * @param account      Withdraw bids of bidder.
+     */
   function _withdraw(uint _nftId, address account) public {
     uint bal = nftStatus[_nftId].bids[account];
     nftStatus[_nftId].bids[account] = 0;
@@ -178,7 +228,11 @@ mapping(address => uint256) private salesProceeds;
 
     emit Withdraw(_nftId, account, bal);
   }
-
+    /**
+     * @notice Set treasury account for auction.
+     *
+     * @param account      Treasury account.
+     */
   function setTreasury(address account) external {
     require(msg.sender == owner(), "[INFO] msg.sender is not owner");
     treasury = payable(account);
@@ -186,7 +240,11 @@ mapping(address => uint256) private salesProceeds;
     emit SetTreasury(treasury);
   }
 
-
+    /**
+     * @notice End NFT Auction
+     *
+     * @param _nftId      The nft id of designated NFT.
+     */
   function end(uint _nftId) external didDeposit(msg.sender) {
     require(nftStatus[_nftId].started, "[INFO] Auctionner has not started");
     require(
@@ -209,8 +267,12 @@ mapping(address => uint256) private salesProceeds;
     emit End(_nftId, nftStatus[_nftId].winner, nftStatus[_nftId].winnings);
   }
 
-  // Claiming Functions
-  function claimWinner(uint _nftId) external{
+    /**
+     * @notice Claim NFT after NFT Auction
+     *
+     * @param _nftId      The nft id of designated NFT.
+     */
+  function claimWinner(uint _nftId) external {
     require(
       msg.sender == nftStatus[_nftId].winner,
       "[INFO] msg.sender is not winner"
@@ -221,25 +283,36 @@ mapping(address => uint256) private salesProceeds;
     nft.safeTransferFrom(address(this), winner, _nftId);
     didWinnerClaimed[_nftId] = true;
     uint platformFee = calculatePlatformFee(nftStatus[_nftId].winnings);
-    (address royaltyreceiver, uint royaltyFee) = nft.royaltyInfo(_nftId,nftStatus[_nftId].winnings);
+    (address royaltyreceiver, uint royaltyFee) = nft.royaltyInfo(
+      _nftId,
+      nftStatus[_nftId].winnings
+    );
 
     treasury.transfer(platformFee); // pay 1% of platform fee
     payable(royaltyreceiver).transfer(royaltyFee); // pay royalty fee
-    
+
     withdrawDeposit(msg.sender); // Return Deposit
     emit ClaimWinner(winner, _nftId);
   }
 
-  function claimSeller(uint _nftId) external{
-    require(msg.sender == nftStatus[_nftId].seller, "[INFO] msg.sender is not seller");
+    /**
+     * @notice Claim ETH after NFT Auction
+     *
+     * @param _nftId      The nft id of designated NFT.
+     */
+  function claimSeller(uint _nftId) external {
+    require(
+      msg.sender == nftStatus[_nftId].seller,
+      "[INFO] msg.sender is not seller"
+    );
     require(!didSellerClaimed[_nftId], "[INFO] seller already claimed rewards");
 
     uint platformFee = calculatePlatformFee(nftStatus[_nftId].winnings);
-    ( , uint royaltyFee) = nft.royaltyInfo(_nftId,nftStatus[_nftId].winnings);
+    (, uint royaltyFee) = nft.royaltyInfo(_nftId, nftStatus[_nftId].winnings);
     uint deductedFee = nftStatus[_nftId].winnings - (platformFee + royaltyFee);
-    (bool success, ) = payable(nftStatus[_nftId].seller).call{value: deductedFee}(
-      ""
-    );
+    (bool success, ) = payable(nftStatus[_nftId].seller).call{
+      value: deductedFee
+    }("");
     require(success, "[INFO] Transfer failed");
 
     didSellerClaimed[_nftId] = true;
@@ -248,13 +321,22 @@ mapping(address => uint256) private salesProceeds;
     emit ClaimSeller(nftStatus[_nftId].seller, _nftId);
   }
 
+    /**
+     * @notice Calculate platform fee, set to 1 percent.
+     */
   function calculatePlatformFee(
     uint256 _bidAmount
   ) public pure returns (uint256) {
     return (_bidAmount / 10000) * 100; // 1 percent
   }
 
-  // [Fixed-Price Market]
+    /**
+     * @notice Start listing item for fixed price market.
+     *
+     * @param _nftId      The nft id of designated NFT.
+     * @param nftAddress     NFT address to be listed.
+     * @param askPrice    Price to be asked by seller.
+     */
   function listItem(
     address nftAddress,
     uint256 _nftId,
@@ -274,10 +356,16 @@ mapping(address => uint256) private salesProceeds;
     emit ItemListed(msg.sender, nftAddress, _nftId, askPrice);
   }
 
+    /**
+     * @notice Cancel listing item for fixed price market.
+     *
+     * @param _nftId      The nft id of designated NFT.
+     * @param nftAddress     NFT address to be listed.
+     */
   function cancelListing(
     address nftAddress,
     uint256 _nftId
-  ) external isListed(nftAddress, _nftId){
+  ) external isListed(nftAddress, _nftId) {
     require(
       msg.sender == salesListing[nftAddress][_nftId].seller,
       "[INFO]: msg.sender is not seller"
@@ -287,6 +375,12 @@ mapping(address => uint256) private salesProceeds;
     emit ItemCanceled(msg.sender, nftAddress, _nftId);
   }
 
+    /**
+     * @notice Buy listing item for fixed price market.
+     *
+     * @param _nftId      The nft id of designated NFT.
+     * @param nftAddress     NFT address to be listed.
+     */
   function buyItem(
     address nftAddress,
     uint256 _nftId
@@ -300,7 +394,10 @@ mapping(address => uint256) private salesProceeds;
 
     uint platformFee = calculatePlatformFee(msg.value);
     treasury.transfer(platformFee); // pay 1% of platform fee
-    (address royaltyreceiver, uint royaltyFee) = _nft.royaltyInfo(_nftId,msg.value);
+    (address royaltyreceiver, uint royaltyFee) = _nft.royaltyInfo(
+      _nftId,
+      msg.value
+    );
 
     payable(royaltyreceiver).transfer(royaltyFee); // pay royalty fee
 
@@ -313,6 +410,12 @@ mapping(address => uint256) private salesProceeds;
     emit ItemBought(msg.sender, nftAddress, _nftId, listedItem.price);
   }
 
+    /**
+     * @notice Get listing item for fixed price market.
+     *
+     * @param _nftId      The nft id of designated NFT.
+     * @param nftAddress     NFT address to be listed.
+     */
   function getListing(
     address nftAddress,
     uint256 _nftId
@@ -320,12 +423,9 @@ mapping(address => uint256) private salesProceeds;
     return salesListing[nftAddress][_nftId];
   }
 
-  // Deposit
-  event Deposited(address indexed payee, uint256 weiAmount);
-  event Withdrawn(address indexed payee);
-
-  mapping(address => bool) public depositCheck;
-
+    /**
+     * @notice Deposit tokens to use platform
+     */
   function deposit() public payable {
     require(
       msg.value == DEPOSIT_VALUE,
@@ -335,6 +435,11 @@ mapping(address => uint256) private salesProceeds;
     emit Deposited(msg.sender, msg.value);
   }
 
+    /**
+     * @notice Withdraw deposits
+     *
+     * @param _account      Account to withdraw deposit.
+     */
   function withdrawDeposit(address _account) public {
     require(depositCheck[_account] == true, "[INFO] : No deposit found");
     depositCheck[_account] = false;
@@ -342,19 +447,30 @@ mapping(address => uint256) private salesProceeds;
     emit Withdrawn(_account);
   }
 
-
-
-  // Dutch Auction
-    function startDutch(uint _nftId, uint _initialPrice , uint period) external isOwner(address(nft), _nftId,msg.sender) didDeposit(msg.sender) {
+    /**
+     * @notice Start Dutch auction
+     *
+     * @param _nftId      The nft id of designated NFT.
+     * @param _initialPrice     Initial price of dutch auction.
+     * @param period    Dutch auction period in days.
+     */
+  function startDutch(
+    uint _nftId,
+    uint _initialPrice,
+    uint period
+  ) external isOwner(address(nft), _nftId, msg.sender) didDeposit(msg.sender) {
     require(
       !nftStatus[_nftId].started,
       "[INFO] Auctionner has already started"
     );
     require(period <= 30, "[INFO] Maximum allowable auction is 30 days");
-    require(_initialPrice >= discountRate * period, "[INFO] starting price < min");
+    require(
+      _initialPrice >= discountRate * period,
+      "[INFO] starting price < min"
+    );
 
     nft.safeTransferFrom(msg.sender, address(this), _nftId); // Transfer nft from sender to contract
-    
+
     nftStatus[_nftId].seller = msg.sender;
     nftStatus[_nftId].highestBid = _initialPrice;
     nftStatus[_nftId].startAt = block.timestamp;
@@ -365,38 +481,48 @@ mapping(address => uint256) private salesProceeds;
     emit Start(_nftId);
   }
 
-      function getPriceDutch(uint _nftId) public view returns (uint) {
-        uint timeElapsed = block.timestamp - nftStatus[_nftId].startAt;
-        uint discount = discountRate * timeElapsed;
-        uint startedPrice = nftStatus[_nftId].highestBid;
-        return startedPrice - discount;
+    /**
+     * @notice get current price of dutch auction listing
+     *
+     * @param _nftId      The nft id of designated NFT.
+     */
+  function getPriceDutch(uint _nftId) public view returns (uint) {
+    uint timeElapsed = block.timestamp - nftStatus[_nftId].startAt;
+    uint discount = discountRate * timeElapsed;
+    uint startedPrice = nftStatus[_nftId].highestBid;
+    return startedPrice - discount;
+  }
+
+   /**
+     * @notice buy dutch auction listing
+     *
+     * @param _nftId      The nft id of designated NFT.
+     */
+  function buyDutch(uint _nftId) external payable {
+    require(block.timestamp < nftStatus[_nftId].endAt, "auction expired");
+
+    uint price = getPriceDutch(_nftId);
+    nftStatus[_nftId].winnings = msg.value;
+    nftStatus[_nftId].winner = msg.sender;
+
+    uint platformFee = calculatePlatformFee(nftStatus[_nftId].winnings);
+    (address royaltyreceiver, uint royaltyFee) = nft.royaltyInfo(
+      _nftId,
+      nftStatus[_nftId].winnings
+    );
+    uint fee = royaltyFee + platformFee;
+    uint refund = msg.value - price - fee;
+
+    require(msg.value >= price + fee, "[INFO] ETH < price");
+
+    treasury.transfer(platformFee); // pay 1% of platform fee
+    payable(royaltyreceiver).transfer(royaltyFee); // pay royalty fee
+
+    nft.safeTransferFrom(nftStatus[_nftId].seller, msg.sender, _nftId); // TODO
+    treasury.transfer(platformFee); // pay 1% of platform fee
+    payable(royaltyreceiver).transfer(royaltyFee); // pay royalty fee
+    if (refund > 0) {
+      payable(msg.sender).transfer(refund);
     }
-
-        function buyDutch(uint _nftId) external payable {
-        require(block.timestamp < nftStatus[_nftId].endAt, "auction expired");
-
-        uint price = getPriceDutch(_nftId);
-        nftStatus[_nftId].winnings = msg.value;
-        nftStatus[_nftId].winner = msg.sender;
-
-        uint platformFee = calculatePlatformFee(nftStatus[_nftId].winnings);
-        (address royaltyreceiver, uint royaltyFee) = nft.royaltyInfo(_nftId,nftStatus[_nftId].winnings);
-        uint fee = royaltyFee +platformFee;
-        uint refund = msg.value - price - fee;
-
-        require(msg.value >= price + fee, "[INFO] ETH < price");
-
-        treasury.transfer(platformFee); // pay 1% of platform fee
-        payable(royaltyreceiver).transfer(royaltyFee); // pay royalty fee
-
-
-        nft.safeTransferFrom(nftStatus[_nftId].seller, msg.sender, _nftId); // TODO
-        treasury.transfer(platformFee); // pay 1% of platform fee
-        payable(royaltyreceiver).transfer(royaltyFee); // pay royalty fee
-        if (refund > 0) {
-            payable(msg.sender).transfer(refund);
-        }
-    }
-    
-
+  }
 }
