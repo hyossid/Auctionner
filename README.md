@@ -1,6 +1,6 @@
 # Auctionner
 
-Auctioneer is customized NFT auction contract supporting dutch auction and fixed-price marketplace. Initially owned by deployer, owner may start the english auction based auction along with dutch auction and fixed-price listing. All the entities interacting with this contract needs to deposit designated amount of ETH(0.05 ETH as default) before calling functions in the contract. Auctioneer currently supports ETH for NFT auction, however can be extended to support other ERC20 tokens in future. All transaction happening in Auctioneer enforces `royaltyInfo` from ERC2981 on trading relevant NFT asset. 
+ - Auctioneer is customized NFT auction contract supporting dutch auction and fixed-price marketplace. Initially owned by deployer, owner may start the english auction based auction along with dutch auction and fixed-price listing. All the entities interacting with this contract needs to deposit designated amount of **ETH** (0.05 ETH as default) before calling functions in the contract. Auctioneer currently supports ETH for NFT auction, however can be extended to support other ERC20 tokens in future. All transaction happening in Auctioneer enforces `royaltyInfo` from ERC2981 on trading relevant NFT asset. 
 
 --- 
 ## Get Started 
