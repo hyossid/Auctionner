@@ -1,14 +1,11 @@
 # Auctionner
 
-Customized NFT auction contract supporting dutch auction and fixed-price marketplace.
-
-Currently only supports ETH for NFT auction.
-
-This auction enforces `royaltyInfo` from ERC2981 on trading relevant NFT asset
+Auctioneer is customized NFT auction contract supporting dutch auction and fixed-price marketplace. Initially owned by deployer, owner may start the english auction based auction along with dutch auction and fixed-price listing. All the entities interacting with this contract needs to deposit designated amount of ETH(0.05 ETH as default) before calling functions in the contract. Auctioneer currently supports ETH for NFT auction, however can be extended to support other ERC20 tokens in future. All transaction happening in Auctioneer enforces `royaltyInfo` from ERC2981 on trading relevant NFT asset. 
 
 --- 
+## Get Started 
 
-### yarn
+### Initializing project
 
 we are using yarn as our package manager.
 
@@ -16,7 +13,9 @@ we are using yarn as our package manager.
 yarn install
 ```
 
-### compile 
+### Compile contract 
+
+compiles solidity contract to artifacts for test codes and deployment scripts.
 
 ```shell
 yarn build
@@ -24,11 +23,15 @@ yarn build
 
 ### run test with gas report
 
+runs various test cases with gas report.
+
 ```shell
 yarn test:auctioneer
 ```
 
 ### deploy
+
+deploy
 
 ```shell
 yarn hardhat run scripts/deploy.ts
@@ -44,4 +47,7 @@ yarn hardhat run scripts/deploy.ts
    * Dutch auction : dutch auction, can use `startDutch`, `getPriceDutch` , `buyDutch`
    * Deposit and withdraw from platform: Users must perform deposit in order to interact with contract, can use `deposit`, `withdraw` 
 
+### Reference
 
+https://solidity-by-example.org/app/english-auction/
+https://solidity-by-example.org/app/dutch-auction/
