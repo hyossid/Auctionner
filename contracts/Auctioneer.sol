@@ -495,14 +495,14 @@ contract Auctioneer is Ownable, ReentrancyGuard {
       "[INFO] starting price < min"
     );
 
-    nft.safeTransferFrom(msg.sender, address(this), _nftId); // Transfer nft from sender to contract
+    nft.safeTransferFrom(msg.sender, address(this), _nftId); 
 
     nftStatus[_nftId].seller = msg.sender;
     nftStatus[_nftId].highestBid = _initialPrice;
     nftStatus[_nftId].startAt = block.timestamp;
     nftStatus[_nftId].started = true;
     nftStatus[_nftId].isDutch = true;
-    nftStatus[_nftId].endAt = block.timestamp + uint(period) * 1 days; // Auction ends in 7 days
+    nftStatus[_nftId].endAt = block.timestamp + uint(period) * 1 days; 
 
     emit StartDutch(_nftId);
   }
@@ -595,7 +595,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
 
   /**
    * @notice tickle listings that passed grace period
-   *
+   * 
    * @param _nftAddress     NFT address to be listed.
    * @param _nftId      The nft id of designated NFT.
    */
