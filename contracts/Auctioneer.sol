@@ -30,6 +30,12 @@ contract Auctioneer is Ownable, ReentrancyGuard {
   /// @notice Emit event of Start
   event Start(uint nftId);
 
+  /// @notice Emit event of Start dutch auction
+  event StartDutch(uint nftId);
+
+  /// @notice Emit event of Buy Dutch auction
+  event BuyDutch(uint nftId);
+
   /// @notice Emit event of Bid
   event Bid(uint nftId, address indexed sender, uint amount);
 
@@ -144,7 +150,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     nft = IERC721(_nft); 
     _transferOwnership(msg.sender); 
     DEPOSIT_VALUE = 50000000000000000; // 0.05 ETH
-    discountRate = 1; // discout rate is configurable for dutch auction
+    discountRate = 10000000000000000; // discout rate is configurable for dutch auction
   }
 
   function onERC721Received(
@@ -278,6 +284,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
       "[INFO] msg.sender is not winner"
     );
     require(!didWinnerClaimed[_nftId], "[INFO] winner already claimed NFT");
+    require(nftStatus[_nftId].ended, "[INFO] Auction not ended yet");
 
     address winner = nftStatus[_nftId].winner;
     nft.safeTransferFrom(address(this), winner, _nftId);
@@ -306,6 +313,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
       "[INFO] msg.sender is not seller"
     );
     require(!didSellerClaimed[_nftId], "[INFO] seller already claimed rewards");
+    require(nftStatus[_nftId].ended, "[INFO] Auction not ended yet");
 
     uint platformFee = calculatePlatformFee(nftStatus[_nftId].winnings);
     (, uint royaltyFee) = nft.royaltyInfo(_nftId, nftStatus[_nftId].winnings);
@@ -478,7 +486,7 @@ contract Auctioneer is Ownable, ReentrancyGuard {
     nftStatus[_nftId].isDutch = true;
     nftStatus[_nftId].endAt = block.timestamp + uint(period) * 1 days; // Auction ends in 7 days
 
-    emit Start(_nftId);
+    emit StartDutch(_nftId);
   }
 
     /**
@@ -487,22 +495,26 @@ contract Auctioneer is Ownable, ReentrancyGuard {
      * @param _nftId      The nft id of designated NFT.
      */
   function getPriceDutch(uint _nftId) public view returns (uint) {
+    require(nftStatus[_nftId].isDutch, "[INFO] : This is not dutch auction");
+
     uint timeElapsed = block.timestamp - nftStatus[_nftId].startAt;
     uint discount = discountRate * timeElapsed;
     uint startedPrice = nftStatus[_nftId].highestBid;
+    require(startedPrice > discount, "[INFO] Too much discount");
     return startedPrice - discount;
   }
 
    /**
-     * @notice buy dutch auction listing
+     * @notice Buy dutch auction listing
      *
      * @param _nftId      The nft id of designated NFT.
      */
   function buyDutch(uint _nftId) external payable {
-    require(block.timestamp < nftStatus[_nftId].endAt, "auction expired");
+    require(block.timestamp < nftStatus[_nftId].endAt, "[INFO] auction expired");
 
     uint price = getPriceDutch(_nftId);
-    nftStatus[_nftId].winnings = msg.value;
+    require(price == msg.value, "[INFO] price does not match");
+    nftStatus[_nftId].winnings = price;
     nftStatus[_nftId].winner = msg.sender;
 
     uint platformFee = calculatePlatformFee(nftStatus[_nftId].winnings);
@@ -511,18 +523,19 @@ contract Auctioneer is Ownable, ReentrancyGuard {
       nftStatus[_nftId].winnings
     );
     uint fee = royaltyFee + platformFee;
-    uint refund = msg.value - price - fee;
-
-    require(msg.value >= price + fee, "[INFO] ETH < price");
 
     treasury.transfer(platformFee); // pay 1% of platform fee
     payable(royaltyreceiver).transfer(royaltyFee); // pay royalty fee
 
-    nft.safeTransferFrom(nftStatus[_nftId].seller, msg.sender, _nftId); // TODO
-    treasury.transfer(platformFee); // pay 1% of platform fee
-    payable(royaltyreceiver).transfer(royaltyFee); // pay royalty fee
-    if (refund > 0) {
-      payable(msg.sender).transfer(refund);
-    }
+    nft.safeTransferFrom(address(this), msg.sender, _nftId); 
+
+    payable(nftStatus[_nftId].seller).transfer(price-fee); 
+ 
+
+    didWinnerClaimed[_nftId] = true;
+    didSellerClaimed[_nftId] = true;
+
+    nftStatus[_nftId].ended = true;
+    emit BuyDutch(_nftId);
   }
 }

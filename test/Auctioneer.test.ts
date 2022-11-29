@@ -2,9 +2,8 @@ import { time } from '@nomicfoundation/hardhat-network-helpers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-// We define a fixture to reuse the same setup in every test.
-// We use loadFixture to run this setup once, snapshot that state,
-// and reset Hardhat Network to that snapshot in every test.
+// Owner owns the auctioneer contract and NFT initially.
+// Reset Hardhat Network in every test.
 
 describe('Deployment', function () {
   let Auctioneer, nft: any, auctioneer: any, owner: any, addr1: any, addr2: any;
@@ -14,8 +13,6 @@ describe('Deployment', function () {
     [owner, addr1, addr2] = await ethers.getSigners();
     nft = await MyNFT.connect(owner).deploy();
     auctioneer = await Auctioneer.connect(owner).deploy(nft.address);
-    // const ownerBalance = await ethers.provider.getBalance(owner.address);
-    // console.log(ownerBalance);
 
     // NFT Mint
     nft.connect(owner).mint(owner.address, 1);
@@ -116,6 +113,7 @@ describe('Deployment', function () {
       await auctioneer.connect(addr1).buyItem(nft.address, nftId, {
         value: ethers.utils.parseEther('3'),
       });
+
       const listing = await auctioneer.getListing(nft.address, nftId);
       expect(listing.seller).to.equal(
         '0x0000000000000000000000000000000000000000',
@@ -141,6 +139,43 @@ describe('Deployment', function () {
       expect(salesInfoCancel.seller).to.equal(
         '0x0000000000000000000000000000000000000000',
       );
+    });
+
+    describe('[5] : Dutch Auction', () => {
+      it('Dutch auction Happy path', async () => {
+        // Deposit
+        await auctioneer
+          .connect(addr1)
+          .deposit({ value: ethers.utils.parseEther('0.05') });
+
+        await auctioneer
+          .connect(owner)
+          .deposit({ value: ethers.utils.parseEther('0.05') });
+
+        const nftId = 2;
+        const initialPrice = ethers.utils.parseEther('3');
+        const duration = 30;
+        await auctioneer
+          .connect(owner)
+          .startDutch(nftId, initialPrice, duration);
+
+        expect(await auctioneer.connect(owner).getPriceDutch(nftId)).to.equal(
+          ethers.utils.parseEther('3'),
+        );
+
+        // time manipulation
+        await time.increase(10);
+
+        expect(await auctioneer.connect(owner).getPriceDutch(nftId)).to.equal(
+          ethers.utils.parseEther('2.9'),
+        );
+
+        await auctioneer.connect(addr1).buyDutch(nftId, {
+          value: ethers.utils.parseEther('2.89'),
+        });
+
+        expect(await nft.connect(owner).ownerOf(nftId)).to.equal(addr1.address);
+      });
     });
   });
 });
