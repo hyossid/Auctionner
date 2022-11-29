@@ -49,5 +49,5 @@ yarn hardhat run scripts/deploy.ts
 
 ### Reference
 
-https://solidity-by-example.org/app/english-auction/
-https://solidity-by-example.org/app/dutch-auction/
+- https://solidity-by-example.org/app/english-auction/
+- https://solidity-by-example.org/app/dutch-auction/
