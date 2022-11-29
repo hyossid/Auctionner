@@ -13,6 +13,7 @@ struct bidInfo {
   bool started;
   bool ended;
   bool isDutch;
+  bool isForfeited;
 }
 
 /// @notice : Fixed price marketListing
