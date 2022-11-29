@@ -1,8 +1,8 @@
 # Auctionner
 
-Customized auction contract supporting dutch auction and fixed-price marketplace
+Customized auction contract supporting dutch auction and fixed-price marketplace.
 
-Currently supports ETH for trading
+Currently only supports ETH for auction.
 
 --- 
 
