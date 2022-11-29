@@ -1,8 +1,10 @@
 # Auctionner
 
-Customized auction contract supporting dutch auction and fixed-price marketplace.
+Customized NFT auction contract supporting dutch auction and fixed-price marketplace.
 
-Currently only supports ETH for auction.
+Currently only supports ETH for NFT auction.
+
+This auction enforces `royaltyInfo` from ERC2981 on trading relevant NFT asset
 
 --- 
 
