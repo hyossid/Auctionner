@@ -4,6 +4,13 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
+/**
+ * @title  nftSample
+ * @author Sidney Seo (sidneys.btc)
+ * @notice Sample nft for testing auctioneer contract
+ *
+ */
+
 contract GoldGeregeExample is ERC721, ERC2981 {
   constructor() ERC721("GoldGerege", "GG") {
     // set royalty of all NFTs to 5%
