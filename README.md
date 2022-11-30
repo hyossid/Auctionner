@@ -51,6 +51,11 @@ yarn hardhat run scripts/deploy.ts
    * Dutch auction : dutch auction, can use `startDutch`, `getPriceDutch` , `buyDutch`
    * Deposit and withdraw from platform: Users must perform deposit in order to interact with contract, can use `deposit`, `withdraw` 
 
+
+### Gas Report
+
+<img width="842" alt="image" src="https://user-images.githubusercontent.com/34973707/204616715-db5c9077-247f-4053-aa71-cd46233eaac7.png">
+
 ### Reference
 
 - https://solidity-by-example.org/app/english-auction/
